@@ -1,5 +1,7 @@
 all:
-	ghc index.hs -o index
+	mkdir -p bin
+	ghc index.hs -o bin/index
 
 clean:
-	rm index.o index.hi index
+	rm index.o index.hi
+	rm -r bin
