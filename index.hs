@@ -26,11 +26,14 @@ verifyIsFree b x
   | b !! x == Empty = True
   | otherwise = False
 
+makeMoveUnsafe :: Int -> Piece -> [Piece] -> [Piece]
+makeMoveUnsafe x p b = (take x b) ++ [p] ++ (drop (x+1) b)
+
 makeMove :: Int -> Piece -> [Piece] -> Maybe [Piece]
 makeMove x p b = 
   case verifyIsFree b x of
     False -> Nothing
-    True -> Just ((take x b) ++ [p] ++ (drop (x+1) b))
+    True -> Just (makeMoveUnsafe x p b)
 
 nextTurn :: Piece -> Piece
 nextTurn Cross = Nought
@@ -43,6 +46,29 @@ binaryRepresentation p b i = (.|.) (shift (fromEnum (b !! (8 - i) == p)) i) (bin
 
 hasWon :: Piece -> [Piece] -> Bool
 hasWon p b = any (\x -> (.&.) x (binaryRepresentation p b 8) == x) [0b111000000, 0b000111000, 0b000000111, 0b100100100, 0b010010010, 0b001001001, 0b100010001, 0b001010100]
+
+isFull :: [Piece] -> Bool
+isFull b = (foldl1 (||) $ map (verifyIsFree b) [0..8]) == False
+
+eval :: Piece -> Int
+eval Cross = 1
+eval Nought = -1
+
+orderTuples :: (Int, Int) -> (Int, Int) -> Ordering
+orderTuples x y
+  | snd x < snd y = LT
+  | snd x > snd y = GT
+  | snd x == snd y = EQ
+
+minimax :: [Piece] -> Piece -> (Int, Int)
+minimax b p
+  | hasWon p b == True = (-1, eval p)
+  | isFull b == True = (-1, 0)
+  | otherwise = do
+    if p == Cross then
+      maximumBy orderTuples [(x, snd $ minimax (makeMoveUnsafe x p b) (nextTurn p)) | x <- [0..8], verifyIsFree b x == True]
+    else 
+      minimumBy orderTuples [(x, snd $ minimax (makeMoveUnsafe x p b) (nextTurn p)) | x <- [0..8], verifyIsFree b x == True]
 
 play :: Piece -> [Piece] -> IO()
 play turn board = do
@@ -64,11 +90,12 @@ play turn board = do
           putStrLn $ showBoard newBoard
           end turn
         else
-          if (foldl1 (||) $ map (verifyIsFree newBoard) [0..8]) == False then do
+          if isFull newBoard then do
             putStrLn $ showBoard newBoard
             end Empty
-          else
-            play (nextTurn turn) newBoard
+          else do
+            let ai = fst $ minimax newBoard (nextTurn turn)
+            play turn (makeMoveUnsafe ai (nextTurn turn) newBoard)
 
 end :: Piece -> IO ()
 end Empty = putStrLn "It was a draw!"
